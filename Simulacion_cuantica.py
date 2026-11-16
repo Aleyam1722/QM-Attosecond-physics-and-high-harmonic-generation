@@ -118,3 +118,71 @@ plt.title(
 plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
+
+# PRUEBA: evolucion en tiempo real sin campo laser.
+# Conservamos psi como estado inicial para los siguientes bloques.
+psi_prueba = psi.copy()
+
+dt = 0.02
+pasos_prueba = 5000
+
+norma_inicial = np.sum(np.abs(psi_prueba)**2) * dx
+
+energia_inicial = np.real(
+    np.vdot(psi_prueba, aplicar_hamiltoniano(psi_prueba))
+) * dx
+
+# En tiempo REAL, los exponentes incluyen la unidad imaginaria.
+factor_V_real = np.exp(-1j * V * dt / 2)
+factor_T_real = np.exp(-1j * (k**2 / 2) * dt)
+
+max_error_norma = 0.0
+max_cambio_energia = 0.0
+
+for paso_real in range(1, pasos_prueba + 1):
+    # Medio paso de potencial.
+    psi_prueba = factor_V_real * psi_prueba
+
+    # Paso cinetico.
+    psi_prueba = np.fft.ifft(
+        factor_T_real * np.fft.fft(psi_prueba)
+    )
+
+    # Segundo medio paso de potencial.
+    psi_prueba = factor_V_real * psi_prueba
+
+    # No normalizamos: queremos comprobar la conservacion.
+    norma_actual = np.sum(np.abs(psi_prueba)**2) * dx
+
+    energia_actual = np.real(
+        np.vdot(
+            psi_prueba,
+            aplicar_hamiltoniano(psi_prueba)
+        )
+    ) * dx
+
+    max_error_norma = max(
+        max_error_norma,
+        abs(norma_actual - norma_inicial)
+    )
+
+    max_cambio_energia = max(
+        max_cambio_energia,
+        abs(energia_actual - energia_inicial)
+    )
+
+print("\nPRUEBA DE EVOLUCION SIN CAMPO")
+print(f"Tiempo total: {pasos_prueba * dt:.2f} u.a.")
+print(f"Norma inicial: {norma_inicial:.12f}")
+print(f"Norma final: {norma_actual:.12f}")
+print(f"Mayor cambio de norma: {max_error_norma:.3e}")
+print(
+    f"Mayor cambio de energia: "
+    f"{max_cambio_energia:.3e} Hartree"
+)
+
+# Tolerancias numericas elegidas para esta prueba.
+assert max_error_norma < 1e-10, "La norma cambio demasiado."
+assert max_cambio_energia < 1e-7, "La energia cambio demasiado."
+
+print("Prueba superada: norma y energia estables sin campo.")
