@@ -112,3 +112,117 @@ plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
+
+# Posicion para cualquier fase de salida.
+def calcular_posicion(phi, phi_i):
+    return (
+        np.cos(phi)
+        - np.cos(phi_i)
+        + (phi - phi_i) * np.sin(phi_i)
+    )
+
+
+# Encuentra el primer regreso posterior a la salida.
+def buscar_regreso(phi_i):
+    fases = np.linspace(phi_i, phi_i + 2 * np.pi, 2000)
+    posiciones = calcular_posicion(fases, phi_i)
+
+    cruces = np.flatnonzero(
+        (posiciones[:-1] < 0) & (posiciones[1:] >= 0)
+    )
+
+    if len(cruces) == 0:
+        raise RuntimeError(
+            f"No se encontro regreso para fase {phi_i:.6f}"
+        )
+
+    indice = cruces[0]
+    izquierda = fases[indice]
+    derecha = fases[indice + 1]
+
+    for _ in range(40):
+        centro = (izquierda + derecha) / 2
+
+        if calcular_posicion(centro, phi_i) < 0:
+            izquierda = centro
+        else:
+            derecha = centro
+
+    return (izquierda + derecha) / 2
+
+
+# Fases de salida posteriores al maximo positivo del campo.
+# Evitamos los extremos 0 y pi/2 por sus casos limite.
+fases_salida = np.linspace(0.01, np.pi / 2 - 0.01, 600)
+
+fases_regreso = np.array([
+    buscar_regreso(phi_i)
+    for phi_i in fases_salida
+])
+
+# Energia cinetica de regreso dividida entre Up.
+energias = 2 * (
+    np.sin(fases_salida) - np.sin(fases_regreso)
+)**2
+
+# Duracion de cada recorrido, en ciclos del laser.
+duraciones = (
+    (fases_regreso - fases_salida) / (2 * np.pi)
+)
+
+# Localizamos la mayor energia entre las fases calculadas.
+indice_maximo = np.argmax(energias)
+
+fase_maximo = fases_salida[indice_maximo]
+energia_maxima = energias[indice_maximo]
+
+# Comprobaciones de los regresos encontrados.
+residuos = calcular_posicion(fases_regreso, fases_salida)
+
+assert np.all(fases_regreso > fases_salida)
+assert np.max(np.abs(residuos)) < 1e-10
+
+print("\nRESULTADOS DEL BARRIDO DE FASES")
+print(f"Numero de trayectorias: {len(fases_salida)}")
+print(f"Energia maxima encontrada: {energia_maxima:.6f} Up")
+print(f"Fase de salida correspondiente: {fase_maximo:.6f} rad")
+print(
+    "Duracion de esa trayectoria: "
+    f"{duraciones[indice_maximo]:.6f} ciclos"
+)
+print(
+    "Mayor error de posicion en los regresos: "
+    f"{np.max(np.abs(residuos)):.3e}"
+)
+
+# Antes del maximo: rama de mayor tiempo de recorrido.
+plt.figure()
+
+plt.plot(
+    fases_salida[:indice_maximo + 1],
+    energias[:indice_maximo + 1],
+    label="Trayectorias largas"
+)
+
+# Despues del maximo: rama de menor tiempo de recorrido.
+plt.plot(
+    fases_salida[indice_maximo:],
+    energias[indice_maximo:],
+    label="Trayectorias cortas"
+)
+
+plt.scatter(
+    fase_maximo,
+    energia_maxima,
+    color="red",
+    zorder=3,
+    label=f"Maximo: {energia_maxima:.4f} Up"
+)
+
+plt.xlabel("Fase de salida (rad)")
+plt.ylabel("Energia cinetica de regreso / Up")
+plt.title("Energia de regreso contra fase de salida")
+plt.legend()
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
