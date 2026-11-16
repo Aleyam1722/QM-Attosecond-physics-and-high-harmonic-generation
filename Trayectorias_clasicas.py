@@ -226,3 +226,102 @@ plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
+# PRUEBA 1: repetir el barrido con mas fases de salida.
+fases_refinadas = np.linspace(
+    0.01, np.pi / 2 - 0.01, 1200
+)
+
+regresos_refinados = np.array([
+    buscar_regreso(phi_i)
+    for phi_i in fases_refinadas
+])
+
+energias_refinadas = 2 * (
+    np.sin(fases_refinadas) - np.sin(regresos_refinados)
+)**2
+
+maximo_refinado = np.max(energias_refinadas)
+cambio_maximo = abs(maximo_refinado - energia_maxima)
+
+print("\nPRUEBA DE REFINAMIENTO")
+print(f"Maximo con 600 fases:  {energia_maxima:.9f} Up")
+print(f"Maximo con 1200 fases: {maximo_refinado:.9f} Up")
+print(f"Cambio absoluto: {cambio_maximo:.3e} Up")
+
+
+# PRUEBA 2: comparar duraciones para una misma energia.
+def energia_para_fase(phi_i):
+    phi_r = buscar_regreso(phi_i)
+
+    return 2 * (
+        np.sin(phi_i) - np.sin(phi_r)
+    )**2
+
+
+def fase_para_energia(izquierda, derecha, objetivo):
+    # Buscamos una fase cuya energia coincida con el objetivo.
+    valor_izquierdo = (
+        energia_para_fase(izquierda) - objetivo
+    )
+    valor_derecho = (
+        energia_para_fase(derecha) - objetivo
+    )
+
+    if valor_izquierdo * valor_derecho > 0:
+        raise RuntimeError(
+            "El intervalo no encierra la energia objetivo."
+        )
+
+    for _ in range(40):
+        centro = (izquierda + derecha) / 2
+        valor_centro = energia_para_fase(centro) - objetivo
+
+        if valor_izquierdo * valor_centro <= 0:
+            derecha = centro
+        else:
+            izquierda = centro
+            valor_izquierdo = valor_centro
+
+    return (izquierda + derecha) / 2
+
+
+energia_objetivo = 2.0  # En unidades de Up.
+
+# Una solucion a cada lado del maximo.
+fase_larga = fase_para_energia(
+    fases_salida[0], fase_maximo, energia_objetivo
+)
+
+fase_corta = fase_para_energia(
+    fase_maximo, fases_salida[-1], energia_objetivo
+)
+
+duracion_larga = (
+    buscar_regreso(fase_larga) - fase_larga
+) / (2 * np.pi)
+
+duracion_corta = (
+    buscar_regreso(fase_corta) - fase_corta
+) / (2 * np.pi)
+
+# Comprobamos las energias y el orden de las duraciones.
+assert abs(
+    energia_para_fase(fase_larga) - energia_objetivo
+) < 1e-8
+
+assert abs(
+    energia_para_fase(fase_corta) - energia_objetivo
+) < 1e-8
+
+assert duracion_larga > duracion_corta
+
+print("\nCOMPARACION PARA ENERGIA DE REGRESO = 2 Up")
+print(
+    f"Larga: fase = {fase_larga:.6f} rad; "
+    f"duracion = {duracion_larga:.6f} ciclos"
+)
+print(
+    f"Corta: fase = {fase_corta:.6f} rad; "
+    f"duracion = {duracion_corta:.6f} ciclos"
+)
+print("Comprobacion correcta: la larga dura mas que la corta.")
