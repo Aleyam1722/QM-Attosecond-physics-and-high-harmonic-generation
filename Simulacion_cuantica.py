@@ -186,3 +186,103 @@ assert max_error_norma < 1e-10, "La norma cambio demasiado."
 assert max_cambio_energia < 1e-7, "La energia cambio demasiado."
 
 print("Prueba superada: norma y energia estables sin campo.")
+
+# PRUEBA DE REFINAMIENTO DEL ESTADO FUNDAMENTAL.
+# Usamos variables locales para conservar el estado psi anterior.
+
+def energia_refinada(numero_puntos, paso_tau):
+    longitud = 100.0
+    separacion = 2 * longitud / numero_puntos
+
+    posiciones = (
+        np.arange(numero_puntos) - numero_puntos // 2
+    ) * separacion
+
+    ondas = 2 * np.pi * np.fft.fftfreq(
+        numero_puntos, d=separacion
+    )
+
+    potencial = -1 / np.sqrt(posiciones**2 + 2.0)
+
+    estado = np.exp(-posiciones**2 / 2).astype(complex)
+    estado /= np.sqrt(
+        np.sum(np.abs(estado)**2) * separacion
+    )
+
+    medio_potencial = np.exp(-potencial * paso_tau / 2)
+    paso_cinetico = np.exp(-ondas**2 * paso_tau / 2)
+
+    # Mismo intervalo de tiempo imaginario en todos los casos.
+    tau_total = 40.0
+    numero_pasos = round(tau_total / paso_tau)
+
+    for _ in range(numero_pasos):
+        estado = medio_potencial * estado
+        estado = np.fft.ifft(
+            paso_cinetico * np.fft.fft(estado)
+        )
+        estado = medio_potencial * estado
+
+        estado /= np.sqrt(
+            np.sum(np.abs(estado)**2) * separacion
+        )
+
+    Hestado = (
+        np.fft.ifft(
+            (ondas**2 / 2) * np.fft.fft(estado)
+        )
+        + potencial * estado
+    )
+
+    valor_energia = np.real(
+        np.vdot(estado, Hestado)
+    ) * separacion
+
+    residuo_local = np.sqrt(
+        np.sum(
+            np.abs(Hestado - valor_energia * estado)**2
+        ) * separacion
+    )
+
+    return valor_energia, residuo_local
+
+
+print("\nREFINAMIENTO DEL ESTADO FUNDAMENTAL")
+
+casos = [
+    (2048, 0.02),
+    (2048, 0.01),
+    (4096, 0.01),
+]
+
+energias_refinadas = []
+
+for numero_puntos, paso_tau in casos:
+    energia_caso, residuo_caso = energia_refinada(
+        numero_puntos, paso_tau
+    )
+
+    energias_refinadas.append(energia_caso)
+
+    print(
+        f"N = {numero_puntos}, dtau = {paso_tau:.3f}: "
+        f"E = {energia_caso:.12f} Hartree; "
+        f"residuo = {residuo_caso:.3e} Hartree"
+    )
+
+cambio_temporal = abs(
+    energias_refinadas[1] - energias_refinadas[0]
+)
+
+cambio_espacial = abs(
+    energias_refinadas[2] - energias_refinadas[1]
+)
+
+print(f"Cambio al reducir dtau: {cambio_temporal:.3e} Hartree")
+print(f"Cambio al aumentar N: {cambio_espacial:.3e} Hartree")
+
+# Tolerancia elegida para la estabilidad de la energia.
+assert cambio_temporal < 1e-8
+assert cambio_espacial < 1e-8
+
+print("Prueba superada: energia estable frente al refinamiento.")
