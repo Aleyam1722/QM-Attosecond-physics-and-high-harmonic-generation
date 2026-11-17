@@ -334,3 +334,84 @@ fig_refinamiento.savefig(
 )
 
 plt.show()
+# REFINAMIENTO ESPACIAL: 4096 frente a 8192 puntos.
+# Ambos calculos utilizan dt aproximadamente igual a 0.01.
+
+with np.load(
+    carpeta / "resultados_laser_1_dt001_N8192.npz"
+) as datos:
+    tiempo_8192 = datos["tiempo"]
+    aceleracion_8192 = datos["aceleracion"]
+
+    assert np.isclose(float(datos["omega"]), omega_fino)
+    assert np.isclose(
+        float(datos["intensidad"]), intensidad_fina
+    )
+
+# Deben tener los mismos instantes para aislar el cambio espacial.
+assert tiempo_8192.shape == tiempo_fino.shape
+assert np.allclose(
+    tiempo_8192, tiempo_fino, rtol=0, atol=1e-10
+)
+
+# Misma ventana y transformada que para N = 4096.
+transformada_8192 = (
+    dt_fino / np.sqrt(2 * np.pi)
+) * np.fft.rfft(aceleracion_8192 * ventana_fina)
+
+espectro_8192 = np.abs(transformada_8192)**2
+
+region_espacial = (q_fino >= 15) & (q_fino <= 80)
+
+diferencia_espacial = (
+    np.sum(
+        np.abs(
+            espectro_fino[region_espacial]
+            - espectro_8192[region_espacial]
+        )
+    )
+    / np.sum(espectro_8192[region_espacial])
+)
+
+print("\nREFINAMIENTO ESPACIAL DEL ESPECTRO")
+print("Mismo laser, intervalo espacial y paso temporal.")
+print("Comparacion entre ordenes 15 y 80.")
+print(
+    f"Diferencia integrada relativa: "
+    f"{100 * diferencia_espacial:.3e} %"
+)
+
+escala_espacial = np.max(espectro_fino)
+
+fig_espacial, eje_espacial = plt.subplots(figsize=(9, 5))
+
+eje_espacial.semilogy(
+    q_fino,
+    np.maximum(espectro_fino / escala_espacial, 1e-30),
+    label="N = 4096"
+)
+
+eje_espacial.semilogy(
+    q_fino,
+    np.maximum(espectro_8192 / escala_espacial, 1e-30),
+    "--",
+    label="N = 8192"
+)
+
+eje_espacial.set_xlim(15, 85)
+eje_espacial.set_ylim(1e-12, 1e-1)
+eje_espacial.set_xlabel("Orden armonico q")
+eje_espacial.set_ylabel("Espectro / maximo del caso N = 4096")
+eje_espacial.set_title(
+    "Refinamiento espacial: dt = 0.01, L = 400 bohr"
+)
+eje_espacial.legend()
+eje_espacial.grid(alpha=0.3)
+
+fig_espacial.tight_layout()
+fig_espacial.savefig(
+    carpeta / "refinamiento_espacial_espectro.png",
+    dpi=200
+)
+
+plt.show()
