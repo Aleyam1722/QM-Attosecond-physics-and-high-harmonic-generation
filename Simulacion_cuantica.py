@@ -286,3 +286,203 @@ assert cambio_temporal < 1e-8
 assert cambio_espacial < 1e-8
 
 print("Prueba superada: energia estable frente al refinamiento.")
+
+# EVOLUCION CUANTICA CON EL PULSO LASER.
+
+from Campo_laser import (
+    campo_laser,
+    omega,
+    periodo,
+    duracion,
+    INTENSIDAD_W_CM2,
+)
+
+# 1. Malla mas amplia para el movimiento inducido por el laser.
+N_laser = 4096
+L_laser = 400.0
+dx_laser = 2 * L_laser / N_laser
+
+x_laser = (
+    np.arange(N_laser) - N_laser // 2
+) * dx_laser
+
+k_laser = 2 * np.pi * np.fft.fftfreq(
+    N_laser, d=dx_laser
+)
+
+V_laser = -1 / np.sqrt(x_laser**2 + 2.0)
+dV_laser = x_laser / (x_laser**2 + 2.0)**1.5
+
+# 2. Trasladamos el estado fundamental a la nueva malla.
+psi_laser = (
+    np.interp(x_laser, x, psi.real, left=0.0, right=0.0)
+    + 1j * np.interp(
+        x_laser, x, psi.imag, left=0.0, right=0.0
+    )
+)
+
+# Normalizamos solo el estado inicial.
+psi_laser /= np.sqrt(
+    np.sum(np.abs(psi_laser)**2) * dx_laser
+)
+
+# Comprobamos que trasladarlo no arruino el estado inicial.
+Hpsi_laser = (
+    np.fft.ifft(
+        (k_laser**2 / 2) * np.fft.fft(psi_laser)
+    )
+    + V_laser * psi_laser
+)
+
+energia_inicial_laser = np.real(
+    np.vdot(psi_laser, Hpsi_laser)
+) * dx_laser
+
+residuo_inicial_laser = np.sqrt(
+    np.sum(
+        np.abs(
+            Hpsi_laser - energia_inicial_laser * psi_laser
+        )**2
+    ) * dx_laser
+)
+
+assert residuo_inicial_laser < 1e-4
+
+# 3. Absorbedor: potencial imaginario -iW, con W >= 0.
+# En la region central W = 0; aumenta suavemente en los bordes.
+inicio_absorcion = 320.0
+eta = 1.0  # Hartree
+
+distancia_relativa = np.clip(
+    (np.abs(x_laser) - inicio_absorcion)
+    / (L_laser - inicio_absorcion),
+    0.0,
+    1.0
+)
+
+W = eta * distancia_relativa**4
+
+# 4. Ajustamos el paso para terminar exactamente con el pulso.
+pasos_laser = int(np.ceil(duracion / 0.02))
+dt_laser = duracion / pasos_laser
+
+t_laser = np.arange(pasos_laser + 1) * dt_laser
+
+factor_cinetico_laser = np.exp(
+    -1j * (k_laser**2 / 2) * dt_laser
+)
+
+# Guardamos norma y aceleracion en cada instante.
+normas_laser = np.empty(pasos_laser + 1)
+aceleraciones_laser = np.empty(pasos_laser + 1)
+
+densidad = np.abs(psi_laser)**2
+normas_laser[0] = np.sum(densidad) * dx_laser
+
+aceleraciones_laser[0] = (
+    -np.sum(dV_laser * densidad) * dx_laser
+    - float(campo_laser(0.0)) * normas_laser[0]
+)
+
+# Instantaneas durante dos ciclos centrales.
+indices_fotos = set(
+    np.linspace(
+        int(0.45 * pasos_laser),
+        int(0.65 * pasos_laser),
+        41,
+        dtype=int
+    )
+)
+
+tiempos_fotos = []
+densidades_fotos = []
+
+print("\nEVOLUCION CON LASER")
+print(f"Pasos: {pasos_laser}")
+print(f"Energia inicial: {energia_inicial_laser:.10f} Hartree")
+print(f"Residuo inicial: {residuo_inicial_laser:.3e} Hartree")
+
+# 5. Evolucion: campo evaluado a mitad de cada paso.
+for j in range(pasos_laser):
+    tiempo_medio = (j + 0.5) * dt_laser
+    E_medio = float(campo_laser(tiempo_medio))
+
+    potencial_total = V_laser + x_laser * E_medio
+
+    # El termino -W amortigua la funcion en los bordes.
+    factor_medio = np.exp(
+        (-1j * potencial_total - W) * dt_laser / 2
+    )
+
+    psi_laser = factor_medio * psi_laser
+
+    psi_laser = np.fft.ifft(
+        factor_cinetico_laser * np.fft.fft(psi_laser)
+    )
+
+    psi_laser = factor_medio * psi_laser
+
+    # No renormalizamos durante la evolucion.
+    densidad = np.abs(psi_laser)**2
+
+    normas_laser[j + 1] = np.sum(densidad) * dx_laser
+
+    E_actual = float(campo_laser(t_laser[j + 1]))
+
+    # Fuerza sobre el electron: -dV/dx - E(t).
+    aceleraciones_laser[j + 1] = (
+        -np.sum(dV_laser * densidad) * dx_laser
+        - E_actual * normas_laser[j + 1]
+    )
+
+    if j + 1 in indices_fotos:
+        tiempos_fotos.append(t_laser[j + 1])
+        densidades_fotos.append(densidad.copy())
+
+    if (j + 1) % 10000 == 0:
+        print(f"Avance: {100 * (j + 1) / pasos_laser:.1f} %")
+
+# 6. Comprobaciones basicas de la ejecucion.
+assert np.all(np.isfinite(aceleraciones_laser))
+assert np.all(np.isfinite(normas_laser))
+assert np.max(normas_laser) <= normas_laser[0] + 1e-9
+assert np.max(np.diff(normas_laser)) < 1e-9
+
+print(f"Norma final dentro de la caja: {normas_laser[-1]:.6f}")
+print(
+    "Probabilidad absorbida: "
+    f"{normas_laser[0] - normas_laser[-1]:.6f}"
+)
+
+# 7. Guardamos resultados para obtener despues el espectro.
+np.savez_compressed(
+    "resultados_laser_1.npz",
+    tiempo=t_laser,
+    aceleracion=aceleraciones_laser,
+    norma=normas_laser,
+    x=x_laser,
+    tiempos_fotos=np.array(tiempos_fotos),
+    densidades_fotos=np.array(densidades_fotos),
+    omega=omega,
+    periodo=periodo,
+    intensidad=INTENSIDAD_W_CM2,
+    energia_inicial=energia_inicial_laser,
+    dt=dt_laser,
+    dx=dx_laser,
+    inicio_absorcion=inicio_absorcion,
+    eta=eta,
+)
+
+print("Resultados guardados en resultados_laser_1.npz")
+
+plt.figure()
+plt.plot(t_laser / periodo, normas_laser)
+plt.xlabel("Tiempo / periodo del laser")
+plt.ylabel("Probabilidad dentro de la caja")
+plt.title(
+    f"Evolucion con laser: I = {INTENSIDAD_W_CM2:.1e} W/cm²\n"
+    f"N = {N_laser}, L = {L_laser:g} bohr"
+)
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
