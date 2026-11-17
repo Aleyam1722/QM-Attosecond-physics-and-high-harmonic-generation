@@ -228,3 +228,109 @@ fig_comparacion.savefig(
 )
 
 plt.show()
+
+# COMPARACION DEL ESPECTRO AL REDUCIR EL PASO TEMPORAL.
+# Usamos la misma ventana gaussiana en ambos calculos.
+
+with np.load(
+    carpeta / "resultados_laser_1_dt001.npz"
+) as datos:
+    tiempo_fino = datos["tiempo"]
+    aceleracion_fina = datos["aceleracion"]
+    omega_fino = float(datos["omega"])
+    intensidad_fina = float(datos["intensidad"])
+
+# Comprobamos que estamos comparando el mismo laser.
+assert np.isclose(omega_fino, omega)
+assert np.isclose(intensidad_fina, intensidad)
+assert np.isclose(tiempo_fino[-1], tiempo[-1])
+
+dt_fino = tiempo_fino[1] - tiempo_fino[0]
+
+centro_fino = (tiempo_fino[0] + tiempo_fino[-1]) / 2
+
+ventana_fina = np.exp(
+    -0.5 * ((tiempo_fino - centro_fino) / sigma)**2
+)
+
+transformada_fina = (
+    dt_fino / np.sqrt(2 * np.pi)
+) * np.fft.rfft(aceleracion_fina * ventana_fina)
+
+q_fino = (
+    2 * np.pi
+    * np.fft.rfftfreq(len(tiempo_fino), d=dt_fino)
+    / omega_fino
+)
+
+espectro_fino = np.abs(transformada_fina)**2
+
+# Las frecuencias de ambos registros difieren ligeramente.
+# Interpolamos el espectro fino sobre el eje del original.
+region_comparacion = (
+    (orden_armonico >= 15) & (orden_armonico <= 80)
+)
+
+referencia_fina = np.interp(
+    orden_armonico[region_comparacion],
+    q_fino,
+    espectro_fino
+)
+
+# Diferencia integrada relativa en la region elegida.
+# Comparamos espectros sin normalizarlos por separado.
+diferencia_relativa = (
+    np.sum(
+        np.abs(
+            espectro[region_comparacion] - referencia_fina
+        )
+    )
+    / np.sum(referencia_fina)
+)
+
+print("\nREFINAMIENTO TEMPORAL DEL ESPECTRO")
+print(f"Paso original: {dt:.8f} u.a.")
+print(f"Paso refinado: {dt_fino:.8f} u.a.")
+print("Comparacion entre ordenes 15 y 80.")
+print(
+    f"Diferencia integrada relativa: "
+    f"{100 * diferencia_relativa:.4f} %"
+)
+
+# Misma escala de normalizacion para las dos curvas.
+escala_comun = np.max(espectro)
+
+fig_refinamiento, eje_refinamiento = plt.subplots(
+    figsize=(9, 5)
+)
+
+eje_refinamiento.semilogy(
+    orden_armonico,
+    np.maximum(espectro / escala_comun, 1e-30),
+    label=f"dt = {dt:.3f}"
+)
+
+eje_refinamiento.semilogy(
+    q_fino,
+    np.maximum(espectro_fino / escala_comun, 1e-30),
+    "--",
+    label=f"dt = {dt_fino:.3f}"
+)
+
+eje_refinamiento.set_xlim(15, 85)
+eje_refinamiento.set_ylim(1e-12, 1e-1)
+eje_refinamiento.set_xlabel("Orden armonico q")
+eje_refinamiento.set_ylabel("Espectro / maximo del caso original")
+eje_refinamiento.set_title(
+    "Refinamiento temporal: misma malla, laser y ventana"
+)
+eje_refinamiento.legend()
+eje_refinamiento.grid(alpha=0.3)
+
+fig_refinamiento.tight_layout()
+fig_refinamiento.savefig(
+    carpeta / "refinamiento_temporal_espectro.png",
+    dpi=200
+)
+
+plt.show()

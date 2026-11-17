@@ -363,7 +363,7 @@ distancia_relativa = np.clip(
 W = eta * distancia_relativa**4
 
 # 4. Ajustamos el paso para terminar exactamente con el pulso.
-pasos_laser = int(np.ceil(duracion / 0.02))
+pasos_laser = int(np.ceil(duracion / 0.01))
 dt_laser = duracion / pasos_laser
 
 t_laser = np.arange(pasos_laser + 1) * dt_laser
@@ -456,7 +456,7 @@ print(
 
 # 7. Guardamos resultados para obtener despues el espectro.
 np.savez_compressed(
-    "resultados_laser_1.npz",
+    "resultados_laser_1_dt001.npz",
     tiempo=t_laser,
     aceleracion=aceleraciones_laser,
     norma=normas_laser,
@@ -472,8 +472,7 @@ np.savez_compressed(
     inicio_absorcion=inicio_absorcion,
     eta=eta,
 )
-
-print("Resultados guardados en resultados_laser_1.npz")
+print("Resultados guardados en resultados_laser_1_dt001.npz")
 
 plt.figure()
 plt.plot(t_laser / periodo, normas_laser)
