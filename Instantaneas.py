@@ -15,9 +15,15 @@ with np.load(
     periodo = float(datos["periodo"])
 
 # Mostramos seis momentos de las instantaneas guardadas.
-indices = np.linspace(
-    0, len(tiempos) - 1, 6, dtype=int
-)
+# Tiempos en periodos del laser, desde la salida hasta el regreso clasico previsto.
+tiempos_objetivo = [5.05, 5.20, 5.35, 5.48, 5.60, 5.71]
+tiempos_en_ciclos = tiempos / periodo
+
+# Para cada tiempo elegido, usamos la foto guardada mas cercana.
+indices = [
+    np.argmin(np.abs(tiempos_en_ciclos - objetivo))
+    for objetivo in tiempos_objetivo
+]
 
 fig, ejes = plt.subplots(
     2, 3, figsize=(12, 6), sharex=True, sharey=True
