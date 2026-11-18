@@ -389,7 +389,7 @@ indices_fotos = set(
     np.linspace(
         int(0.45 * pasos_laser),
         int(0.65 * pasos_laser),
-        41,
+        401,
         dtype=int
     )
 )
