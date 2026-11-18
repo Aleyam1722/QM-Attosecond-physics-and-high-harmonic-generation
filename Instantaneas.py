@@ -47,3 +47,39 @@ fig.savefig(
 )
 
 plt.show()
+
+from matplotlib.colors import LogNorm
+
+fig_mapa, eje_mapa = plt.subplots(figsize=(9, 5))
+
+# Mostramos la misma region espacial que en las seis instantaneas.
+region = np.abs(x) <= 100
+
+mapa = eje_mapa.pcolormesh(
+    x[region],
+    tiempos / periodo,
+    np.maximum(densidades[:, region], 1e-16),
+    shading="auto",
+    norm=LogNorm(vmin=1e-8, vmax=1),
+    cmap="viridis"
+)
+
+# Posicion del ion.
+eje_mapa.axvline(
+    0, color="white", linestyle="--", linewidth=1
+)
+
+eje_mapa.set_xlabel("Posicion x (bohr)")
+eje_mapa.set_ylabel("Tiempo / periodo del laser")
+eje_mapa.set_title("Evolucion de la densidad electronica")
+
+barra = fig_mapa.colorbar(mapa, ax=eje_mapa)
+barra.set_label("Densidad |psi(x,t)|² (bohr⁻¹)")
+
+fig_mapa.tight_layout()
+fig_mapa.savefig(
+    carpeta / "mapa_densidad.png",
+    dpi=200
+)
+
+plt.show()
