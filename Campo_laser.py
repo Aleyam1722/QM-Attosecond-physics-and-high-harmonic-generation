@@ -11,7 +11,7 @@ CONVERSION_INTENSIDAD = 3.5094452e16
 
 # Parametros del primer caso.
 LONGITUD_ONDA_NM = 1270.0
-INTENSIDAD_W_CM2 = 1.0e14
+INTENSIDAD_W_CM2 = 1.1e14
 NUMERO_CICLOS = 10
 
 longitud_onda_m = LONGITUD_ONDA_NM * 1e-9
@@ -128,3 +128,5 @@ if __name__ == "__main__":
     plt.grid(alpha=0.3)
     plt.tight_layout()
     plt.show()
+
+    

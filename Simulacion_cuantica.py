@@ -456,7 +456,7 @@ print(
 
 # 7. Guardamos resultados para obtener despues el espectro.
 np.savez_compressed(
-        "resultados_laser_1_dt001_N8192.npz",
+        "resultados_laser_2_dt001_N8192.npz",
     tiempo=t_laser,
     aceleracion=aceleraciones_laser,
     norma=normas_laser,
@@ -472,7 +472,7 @@ np.savez_compressed(
     inicio_absorcion=inicio_absorcion,
     eta=eta,
 )
-print("Resultados guardados en resultados_laser_1_dt001_N8192.npz")
+print("Resultados guardados en resultados_laser_2_dt001_N8192.npz")
 
 plt.figure()
 plt.plot(t_laser / periodo, normas_laser)
