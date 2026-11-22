@@ -1,9 +1,9 @@
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-# 1. Leemos los resultados de la evolucion con laser.
+
 carpeta = Path(__file__).resolve().parent
 archivo = carpeta / "resultados_laser_1.npz"
 
